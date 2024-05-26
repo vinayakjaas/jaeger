@@ -3,7 +3,7 @@
 PS4='T$(date "+%H:%M:%S") '
 set -euxf -o pipefail
 
-# use global variables to reflect status of db
+# Use global variables to reflect the status of db
 db_is_up=
 
 usage() {
@@ -29,7 +29,6 @@ get_major_version() {
   echo "${version%%.*}"
 }
 
-
 setup_es() {
   local tag=$1
   local image=docker.elastic.co/elasticsearch/elasticsearch
@@ -40,7 +39,8 @@ setup_es() {
     --env "transport.host=127.0.0.1"
     --env "xpack.security.enabled=false"
   )
-  local major_version=${tag%%.*}
+  local major_version
+  major_version=$(get_major_version "${tag}")
   if (( major_version < 8 )); then
     params+=(--env "xpack.monitoring.enabled=false")
   else
@@ -93,11 +93,11 @@ wait_for_storage() {
     sleep 10
     counter=$((counter+1))
   done
-  # after the loop, do final verification and set status as global var
+  # After the loop, do final verification and set status as global var
   if [[ "$(curl "${params[@]}" "${url}")" != "200" ]]; then
     echo "ERROR: ${distro} is not ready"
     docker logs "${cid}"
-    docker kill "${cid}"
+    docker kill "${cid}" || true
     db_is_up=0
   else
     echo "SUCCESS: ${distro} is ready"
@@ -107,14 +107,14 @@ wait_for_storage() {
 
 bring_up_storage() {
   local distro=$1
-  local version=$2
+  local compose_file=$2
   local cid
+
   local version
   version=$(get_image_version "$compose_file" "$distro")
 
   echo "starting ${distro} ${version}"
-  for retry in 1 2 3
-  do
+  for retry in 1 2 3; do
     echo "attempt $retry"
     if [ "${distro}" = "elasticsearch" ]; then
       cid=$(setup_es "${version}")
@@ -130,7 +130,7 @@ bring_up_storage() {
     fi
   done
   if [ ${db_is_up} = "1" ]; then
-  # shellcheck disable=SC2064
+    # shellcheck disable=SC2064
     trap "teardown_storage ${cid}" EXIT
   else
     echo "ERROR: unable to start ${distro}"
@@ -140,13 +140,17 @@ bring_up_storage() {
 
 teardown_storage() {
   local cid=$1
-  docker kill "${cid}"
+  if [[ $(docker ps -q -f id="${cid}") ]]; then
+    docker kill "${cid}"
+  else
+    echo "Container ${cid} is not running."
+  fi
 }
 
 main() {
   check_arg "$@"
   local distro=$1
-  local version=$2
+  local compose_file=$2
 
   bring_up_storage "${distro}" "${compose_file}"
   STORAGE=${distro} make storage-integration-test

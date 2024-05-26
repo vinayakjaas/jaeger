@@ -3,7 +3,6 @@ name: CIT Elasticsearch
 on:
   push:
     branches: [main]
-
   pull_request:
     branches: [main]
 
@@ -11,8 +10,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
   cancel-in-progress: true
 
-# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
-permissions:  # added using https://github.com/step-security/secure-workflows
+permissions:
   contents: read
 
 jobs:
@@ -25,16 +23,16 @@ jobs:
           compose_file: docker-compose/elasticsearch/docker-compose-elasticsearch-v7.yml
           type: elasticsearch
         - major: 8.x
-          compose_file: docker-compose/elasticsearch/docker-compose-elasticsearch-v7.yml
+          compose_file: docker-compose/elasticsearch/docker-compose-elasticsearch-v8.yml
           type: elasticsearch
     name: Elasticsearch ${{ matrix.version.major }}
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+      uses: step-security/harden-runner@v2.7.0
       with:
-        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+        egress-policy: audit
 
-    - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
+    - uses: actions/checkout@v4.1.2
       with:
         submodules: true
 
@@ -42,15 +40,15 @@ jobs:
       run: |
         git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+    - uses: actions/setup-go@v5.0.0
       with:
         go-version: 1.22.x
 
     - name: Install tools
       run: make install-ci
 
-    - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
-    
+    - uses: docker/setup-qemu-action@v3.0.0
+
     - name: Start Elasticsearch
       run: docker-compose -f ${{ matrix.version.compose_file }} up -d
 
@@ -69,8 +67,7 @@ jobs:
         fi
 
     - name: Run elasticsearch integration tests
-      id: test-execution
-      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.compose_file }}
+      run: bash scripts/es-integration-test.sh ${{ matrix.version.type }} ${{ matrix.version.compose_file }}
 
     - name: Output Elasticsearch logs
       run: docker-compose -f ${{ matrix.version.compose_file }} logs
