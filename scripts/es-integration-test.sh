@@ -7,16 +7,28 @@ set -euxf -o pipefail
 db_is_up=
 
 usage() {
-  echo $"Usage: $0 <elasticsearch|opensearch> <version>"
+  echo $"Usage: $0 <elasticsearch|opensearch> <docker-compose-file>"
   exit 1
 }
 
 check_arg() {
   if [ ! $# -eq 2 ]; then
-    echo "ERROR: need exactly two arguments, <elasticsearch|opensearch> <image>"
+    echo "ERROR: need exactly two arguments, <elasticsearch|opensearch> <docker-compose-file>"
     usage
   fi
 }
+
+get_image_version() {
+  local compose_file=$1
+  local service_name=$2
+  grep "image: " "$compose_file" | grep "$service_name" | awk -F ':' '{print $3}'
+}
+
+get_major_version() {
+  local version=$1
+  echo "${version%%.*}"
+}
+
 
 setup_es() {
   local tag=$1
@@ -97,6 +109,8 @@ bring_up_storage() {
   local distro=$1
   local version=$2
   local cid
+  local version
+  version=$(get_image_version "$compose_file" "$distro")
 
   echo "starting ${distro} ${version}"
   for retry in 1 2 3
@@ -134,7 +148,7 @@ main() {
   local distro=$1
   local version=$2
 
-  bring_up_storage "${distro}" "${version}"
+  bring_up_storage "${distro}" "${compose_file}"
   STORAGE=${distro} make storage-integration-test
   STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
   make index-cleaner-integration-test
