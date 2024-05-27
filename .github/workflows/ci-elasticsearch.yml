@@ -3,7 +3,6 @@ name: CIT Elasticsearch
 on:
   push:
     branches: [main]
-
   pull_request:
     branches: [main]
 
@@ -11,8 +10,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
   cancel-in-progress: true
 
-# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
-permissions:  # added using https://github.com/step-security/secure-workflows
+permissions:
   contents: read
 
 jobs:
@@ -22,52 +20,49 @@ jobs:
       fail-fast: false
       matrix:
         version:
-        - major: 7.x
-          image: 7.14.0
-          distribution: elasticsearch
-          jaeger: v1
-        - major: 8.x
-          image: 8.8.2
-          distribution: elasticsearch
-          jaeger: v1
-        - major: 8.x
-          image: 8.8.2
-          distribution: elasticsearch
-          jaeger: v2
+          - major: 7.x
+            image: 7.14.0
+            distribution: elasticsearch
+            jaeger: v1
+          - major: 8.x
+            image: 8.8.2
+            distribution: elasticsearch
+            jaeger: v1
+          - major: 8.x
+            image: 8.8.2
+            distribution: elasticsearch
+            jaeger: v2
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.jaeger }}
     steps:
-    - name: Harden Runner
-      uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
-      with:
-        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+      - name: Harden Runner
+        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142
+        with:
+          egress-policy: audit
 
-    - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
-      with:
-        submodules: true
+      - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633
 
-    - name: Fetch git tags
-      run: |
-        git fetch --prune --unshallow --tags
+      - name: Fetch git tags
+        run: git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
-      with:
-        go-version: 1.22.x
+      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+        with:
+          go-version: 1.22.x
 
-    - name: Install tools
-      run: make install-ci
+      - name: Install tools
+        run: make install-ci
 
-    - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+      - uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3
 
-    - name: Run ${{ matrix.version.distribution }} integration tests
-      id: test-execution
-      run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }} ${{ matrix.version.jaeger }}
+      - name: Run ${{ matrix.version.distribution }} integration tests
+        id: test-execution
+        run: bash scripts/es-integration-test.sh ${{ matrix.version.distribution }} ${{ matrix.version.image }} ${{ matrix.version.jaeger }}
 
-    - name: Output ${{ matrix.version.distribution }} logs
-      run: docker logs ${{ steps.test-execution.outputs.cid }}
-      if: ${{ failure() }}
+      - name: Output ${{ matrix.version.distribution }} logs
+        run: docker logs ${{ steps.test-execution.outputs.cid }}
+        if: ${{ failure() }}
 
-    - name: Upload coverage to codecov
-      uses: ./.github/actions/upload-codecov
-      with:
-        files: cover.out,cover-index-cleaner.out,cover-index-rollover.out
-        flags: ${{ matrix.version.distribution }}-${{ matrix.version.major }}-${{ matrix.version.jaeger }}
+      - name: Upload coverage to codecov
+        uses: ./.github/actions/upload-codecov
+        with:
+          files: cover.out,cover-index-cleaner.out,cover-index-rollover.out
+          flags: ${{ matrix.version.distribution }}-${{ matrix.version.major }}-${{ matrix.version.jaeger }}
