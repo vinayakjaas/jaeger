@@ -15,10 +15,29 @@ check_arg() {
   fi
 }
 
+create_compose_file() {
+  local distro=$1
+  local version=$2
+  cat > docker-compose-${distro}-v7.yaml <<EOL
+version: '3.7'
+services:
+  ${distro}:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${version}
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+EOL
+}
+
 update_compose_file() {
   local distro=$1
   local version=$2
-  sed -i "s/image: .*/image: docker.elastic.co\/elasticsearch\/elasticsearch:${version}/" docker-compose-${distro}-v7.yaml
+  if [ ! -f "docker-compose-${distro}-v7.yaml" ]; then
+    create_compose_file "${distro}" "${version}"
+  else
+    sed -i "s/image: .*/image: docker.elastic.co\/elasticsearch\/elasticsearch:${version}/" docker-compose-${distro}-v7.yaml
+  fi
 }
 
 setup_storage() {
