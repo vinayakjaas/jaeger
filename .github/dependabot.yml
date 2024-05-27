@@ -109,3 +109,18 @@ updates:
     directory: /plugin/storage/cassandra
     schedule:
       interval: daily
+    # update by me
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    ignore:
+      - dependency-name: "*"
+    filters:
+      - type: "file"
+        update: "version-update"
+        match:
+          - "docker-compose-elasticsearch-v7.yaml"
+          - "docker-compose-elasticsearch-v8.yaml"
+    commit-message:
+      prefix: "chore(deps):"
