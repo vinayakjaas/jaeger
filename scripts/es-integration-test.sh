@@ -2,18 +2,17 @@
 
 # Function to check Docker Compose file existence and extract image and version
 check_docker_compose() {
-  local files=$(find . -name "docker-compose-elasticsearch-v$1.yaml")
-  if [ -n "$files" ]; then
-    echo "Docker Compose file found: $files"
-    while IFS= read -r file; do
-      local image=$(grep -oP 'image: \K(.+)' "$file")
-      local version=$(grep -oP 'tag: \K(.+)' "$file")
-      # Update the name field in the GitHub Actions workflow file
-      sed -i "s/name: CIT Elasticsearch/name: CIT Elasticsearch\n  image: $image\n  version: $version/" .github/workflows/main.yml
-      echo "Updated name field with image: $image and version: $version in $file"
-    done <<< "$files"
+  local file="docker-compose-elasticsearch-v$1.yaml"
+  if [ -f "$file" ]; then
+    echo "Docker Compose file $file exists"
+    # Extract image and version from the Docker Compose file
+    local image=$(grep -oP 'image: \K(.+)' "$file")
+    local version=$(grep -oP 'tag: \K(.+)' "$file")
+    # Update the name field in the GitHub Actions workflow file
+    sed -i "s/name: CIT Elasticsearch/name: CIT Elasticsearch\n  image: $image\n  version: $version/" .github/workflows/main.yml
+    echo "Updated name field with image: $image and version: $version"
   else
-    echo "Docker Compose file not found for version $1"
+    echo "Docker Compose file $file not found"
   fi
 }
 
@@ -121,8 +120,7 @@ bring_up_storage() {
   local cid
 
   echo "starting ${distro} ${version}"
-  for retry in 1 2 3
-  do
+  for retry in 1 2 3; do
     echo "attempt $retry"
     if [ "${distro}" = "elasticsearch" ]; then
       cid=$(setup_es "${version}")
@@ -133,4 +131,9 @@ bring_up_storage() {
       usage
     fi
     wait_for_storage "${distro}" "http://localhost:9200" "${cid}"
-    if [ ${db_is_up} = "
+    if [ ${db_is_up} = "1" ]; then
+      break
+    fi
+  done
+  if [ ${db_is_up} = "1" ]; then
+    # shellcheck disable=SC2064
