@@ -1,0 +1,44 @@
+name: Update Image Version
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - main
+
+jobs:
+  update_image_version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      
+      - name: Set up jq
+        run: sudo apt-get install -y jq
+      
+      - name: Extract Image Version
+        id: extract
+        run: |
+          if [ -f docker-compose-elasticsearch-v7.yaml ]; then
+            version=$(grep 'image:' docker-compose-elasticsearch-v7.yaml | head -1 | awk -F ':' '{print $3}')
+            echo "image_version=$version" >> $GITHUB_ENV
+            echo "Compose file: docker-compose-elasticsearch-v7.yaml"
+          elif [ -f docker-compose-elasticsearch-v8.yaml ]; then
+            version=$(grep 'image:' docker-compose-elasticsearch-v8.yaml | head -1 | awk -F ':' '{print $3}')
+            echo "image_version=$version" >> $GITHUB_ENV
+            echo "Compose file: docker-compose-elasticsearch-v8.yaml"
+          else
+            echo "No relevant docker-compose file found."
+            exit 1
+          fi
+      
+      - name: Update CI Workflow
+        run: |
+          if [ -n "$image_version" ]; then
+            sed -i "s/name: CIT Elasticsearch.*/name: CIT Elasticsearch $image_version/" .github/workflows/your-workflow-file.yml
+            git config --global user.email "dependabot@example.com"
+            git config --global user.name "Dependabot"
+            git add .github/workflows/your-workflow-file.yml
+            git commit -m "chore(deps): Update CI workflow with image version $image_version"
+            git push
+          fi
