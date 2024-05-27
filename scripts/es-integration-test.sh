@@ -11,14 +11,15 @@ check_docker_compose() {
     # Update the name field in the GitHub Actions workflow file
     sed -i "s/name: CIT Elasticsearch/name: CIT Elasticsearch\n  image: $image\n  version: $version/" .github/workflows/main.yml
     echo "Updated name field with image: $image and version: $version"
-  else
-    echo "Docker Compose file $file not found"
+    # Exit after updating the first found version
+    exit
   fi
 }
 
-# Check for both versions of Docker Compose files
+# Check for both versions of Docker Compose files and update CIT Elasticsearch if found
 check_docker_compose 7
 check_docker_compose 8
+
 
 # Rest of your script...
 PS4='T$(date "+%H:%M:%S") '
@@ -120,7 +121,8 @@ bring_up_storage() {
   local cid
 
   echo "starting ${distro} ${version}"
-  for retry in 1 2 3; do
+  for retry in 1 2 3
+  do
     echo "attempt $retry"
     if [ "${distro}" = "elasticsearch" ]; then
       cid=$(setup_es "${version}")
@@ -137,3 +139,33 @@ bring_up_storage() {
   done
   if [ ${db_is_up} = "1" ]; then
     # shellcheck disable=SC2064
+    trap "teardown_storage ${cid}" EXIT
+  else
+    echo "ERROR: unable to start ${distro}"
+    exit 1
+  fi
+}
+
+teardown_storage() {
+  local cid=$1
+  docker kill "${cid}"
+}
+
+main() {
+  check_arg "$@"
+  local distro=$1
+  local es_version=$2
+  local j_version=$2
+
+  bring_up_storage "${distro}" "${es_version}"
+
+  if [[ "${j_version}" == "v2" ]]; then
+    STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
+  else
+    STORAGE=${distro} make storage-integration-test
+    make index-cleaner-integration-test
+    make index-rollover-integration-test
+  fi
+}
+
+main "$@"
