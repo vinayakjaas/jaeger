@@ -15,12 +15,33 @@ check_arg() {
   fi
 }
 
+create_compose_file() {
+  local distro=$1
+  cat > docker-compose-${distro}-v7.yaml <<EOL
+version: '3.8'
+services:
+  ${distro}:
+    image: $2
+    ports:
+      - "9200:9200"
+    environment:
+      - "http.host=0.0.0.0"
+      - "transport.host=127.0.0.1"
+      - "xpack.security.enabled=false"
+EOL
+}
+
 setup_storage() {
   local distro=$1
   local version=$2
   local j_version=$3
 
   echo "Starting ${distro} ${version}"
+  
+  if [ ! -f "docker-compose-${distro}-v7.yaml" ]; then
+    create_compose_file "${distro}" "${version}"
+  fi
+  
   docker-compose -f docker-compose-${distro}-v7.yaml up -d
 }
 
