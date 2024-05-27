@@ -1,5 +1,26 @@
 #!/bin/bash
 
+# Function to check Docker Compose file existence and extract image and version
+check_docker_compose() {
+  local file="docker-compose-elasticsearch-v$1.yaml"
+  if [ -f "$file" ]; then
+    echo "Docker Compose file $file exists"
+    # Extract image and version from the Docker Compose file
+    local image=$(grep -oP 'image: \K(.+)' "$file")
+    local version=$(grep -oP 'tag: \K(.+)' "$file")
+    # Update the name field in the GitHub Actions workflow file
+    sed -i "s/name: CIT Elasticsearch/name: CIT Elasticsearch\n  image: $image\n  version: $version/" .github/workflows/main.yml
+    echo "Updated name field with image: $image and version: $version"
+  else
+    echo "Docker Compose file $file not found"
+  fi
+}
+
+# Check for both versions of Docker Compose files
+check_docker_compose 7
+check_docker_compose 8
+
+# Rest of your script...
 PS4='T$(date "+%H:%M:%S") '
 set -euxf -o pipefail
 
@@ -116,7 +137,7 @@ bring_up_storage() {
     fi
   done
   if [ ${db_is_up} = "1" ]; then
-  # shellcheck disable=SC2064
+    # shellcheck disable=SC2064
     trap "teardown_storage ${cid}" EXIT
   else
     echo "ERROR: unable to start ${distro}"
