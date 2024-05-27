@@ -2,17 +2,18 @@
 
 # Function to check Docker Compose file existence and extract image and version
 check_docker_compose() {
-  local file="docker-compose-elasticsearch-v$1.yaml"
-  if [ -f "$file" ]; then
-    echo "Docker Compose file $file exists"
-    # Extract image and version from the Docker Compose file
-    local image=$(grep -oP 'image: \K(.+)' "$file")
-    local version=$(grep -oP 'tag: \K(.+)' "$file")
-    # Update the name field in the GitHub Actions workflow file
-    sed -i "s/name: CIT Elasticsearch/name: CIT Elasticsearch\n  image: $image\n  version: $version/" .github/workflows/main.yml
-    echo "Updated name field with image: $image and version: $version"
+  local files=$(find . -name "docker-compose-elasticsearch-v$1.yaml")
+  if [ -n "$files" ]; then
+    echo "Docker Compose file found: $files"
+    while IFS= read -r file; do
+      local image=$(grep -oP 'image: \K(.+)' "$file")
+      local version=$(grep -oP 'tag: \K(.+)' "$file")
+      # Update the name field in the GitHub Actions workflow file
+      sed -i "s/name: CIT Elasticsearch/name: CIT Elasticsearch\n  image: $image\n  version: $version/" .github/workflows/main.yml
+      echo "Updated name field with image: $image and version: $version in $file"
+    done <<< "$files"
   else
-    echo "Docker Compose file $file not found"
+    echo "Docker Compose file not found for version $1"
   fi
 }
 
@@ -132,39 +133,4 @@ bring_up_storage() {
       usage
     fi
     wait_for_storage "${distro}" "http://localhost:9200" "${cid}"
-    if [ ${db_is_up} = "1" ]; then
-      break
-    fi
-  done
-  if [ ${db_is_up} = "1" ]; then
-    # shellcheck disable=SC2064
-    trap "teardown_storage ${cid}" EXIT
-  else
-    echo "ERROR: unable to start ${distro}"
-    exit 1
-  fi
-}
-
-teardown_storage() {
-  local cid=$1
-  docker kill "${cid}"
-}
-
-main() {
-  check_arg "$@"
-  local distro=$1
-  local es_version=$2
-  local j_version=$2
-
-  bring_up_storage "${distro}" "${es_version}"
-
-  if [[ "${j_version}" == "v2" ]]; then
-    STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
-  else
-    STORAGE=${distro} make storage-integration-test
-    make index-cleaner-integration-test
-    make index-rollover-integration-test
-  fi
-}
-
-main "$@"
+    if [ ${db_is_up} = "
