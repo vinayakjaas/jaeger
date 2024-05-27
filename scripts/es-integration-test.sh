@@ -35,12 +35,19 @@ services:
 EOL
 }
 
+setup_compose_file() {
+  local distro=$1
+  local version=$2
+
+  if [ ! -f "docker-compose-${distro}-v7.yaml" ]; then
+    create_compose_file "${distro}" "${version}"
+  fi
+}
+
 update_compose_file() {
   local distro=$1
   local version=$2
-  if [ ! -f "docker-compose-${distro}-v7.yaml" ]; then
-    create_compose_file "${distro}" "${version}"
-  else
+  if [ -f "docker-compose-${distro}-v7.yaml" ]; then
     sed -i "s/image: .*/image: docker.elastic.co\/elasticsearch\/elasticsearch:${version}/" docker-compose-${distro}-v7.yaml
   fi
 }
@@ -52,9 +59,14 @@ setup_storage() {
 
   echo "Starting ${distro} ${version}"
   
+  setup_compose_file "${distro}" "${version}"
   update_compose_file "${distro}" "${version}"
   
-  docker-compose -f docker-compose-${distro}-v7.yaml up -d
+  if [ -f "docker-compose-${distro}-v7.yaml" ]; then
+    docker-compose -f docker-compose-${distro}-v7.yaml up -d
+  else
+    docker run -d --name ${distro} -p 9200:9200 docker.elastic.co/elasticsearch/elasticsearch:${version}
+  fi
 }
 
 wait_for_storage() {
@@ -97,7 +109,12 @@ main() {
     make index-rollover-integration-test
   fi
 
-  docker-compose -f docker-compose-${distro}-v7.yaml down
+  if [ -f "docker-compose-${distro}-v7.yaml" ]; then
+    docker-compose -f docker-compose-${distro}-v7.yaml down
+  else
+    docker stop ${distro}
+    docker rm ${distro}
+  fi
 }
 
 main "$@"
